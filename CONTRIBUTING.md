@@ -4,7 +4,7 @@ Thank you for contributing to `praxis-authz-opa`.
 
 ## Development Baseline
 
-- **Java:** 21 (`[21,22)` enforced by `maven-enforcer-plugin`)
+- **Java:** 21+ (`[21,)` enforced by `maven-enforcer-plugin`, compiled with `--release 21`)
 - **Maven:** 3.8.0 or newer (`mvn -B clean verify` verified with Maven 3.9+)
 
 Run full local verification before submitting changes:
