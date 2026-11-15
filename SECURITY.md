@@ -1,26 +1,26 @@
-# Security Policy
+# Política de Segurança (`praxis-authz-opa`)
 
-`praxis-authz-opa` compiles authorization policies to OPA Rego v1, computes canonical bundle digests, guards `SEARCH` evaluations against revision drift, and gates release activation against positive and negative verification corpora. Security-relevant defects must be handled responsibly.
+`praxis-authz-opa` compila políticas de autorização para OPA Rego v1, calcula digests canônicos de bundles em 8 estágios, protege consultas `SEARCH` contra deriva de revisão entre instâncias e condiciona ativações à aprovação em corpus positivo e negativo. Defeitos relevantes de segurança devem ser tratados com discrição e responsabilidade.
 
-## Reporting a Vulnerability
+## Reportando uma Vulnerabilidade
 
-Do **not** open public GitHub issues containing exploit payloads, sensitive policy definitions, credentials, tokens, keys, or customer details.
+**Não** abra issues públicas no GitHub contendo payloads de exploração, definições reais de políticas corporativas, credenciais, tokens, chaves privadas ou detalhes de clientes.
 
-Report vulnerabilities privately to the repository maintainer via GitHub Security Advisories (`codexrodrigues/praxis-authz-opa`) and include:
+Envie o relato em canal privado ao mantenedor via **GitHub Security Advisories** (`codexrodrigues/praxis-authz-opa`), incluindo:
 
-- Affected version, tag, or commit hash;
-- Component involved (compiler, bundle assembler, `SameInstanceSearchRevisionGuard`, `HttpClientOpaTransport`, `DeterministicLocalOpaTransport`, or `GovernedOpaReleaseCoordinator`);
-- Minimal reproduction steps without real credentials or tenant data;
-- Security impact (e.g., Rego injection, permissive undefined handling, revision split-brain bypass, or corpus-gate circumvention).
+- Versão, tag ou hash de commit afetado;
+- Componente envolvido (`RegoV1PolicyCompiler`, `OpaBundleAssembler`, `SameInstanceSearchRevisionGuard`, `HttpClientOpaTransport`, `DeterministicLocalOpaTransport` ou `GovernedOpaReleaseCoordinator`);
+- Passos mínimos de reprodução sem credenciais ou dados reais;
+- Impacto de segurança observado (ex.: injeção em Rego, aceitação permissiva de `undefined`, contorno do guarda *split-brain* de revisão ou bypass do gate de corpus).
 
-## Security Design Invariants
+## Invariantes de Segurança por Design
 
-- **Strict Rego v1 & Non-Competing Units:** `RegoV1PolicyCompiler` validates inputs against bounded AST rules and emits `import rego.v1` units; `OpaBundleAssembler` rejects colliding `policyUnitKey` or `policyId` definitions (`P38`);
-- **Fail-Closed OPA Transport:** Missing `result` payloads (`AUTHZ_OPA_UNDEFINED_RESULT`), timeouts (`AUTHZ_OPA_TIMEOUT`), and unknown instance routing (`AUTHZ_OPA_UNKNOWN_INSTANCE`) fail closed (`P18`, `P20`);
-- **Same-Instance SEARCH Revision Consistency:** `SameInstanceSearchRevisionGuard` retries bounded same-instance bundle rotations (`0..3`) and fails closed immediately without retry if `X-OPA-Instance-Id` / `instanceId` changes between preflight and postflight (`P17`);
-- **Corpus-Verified Release Activation:** `GovernedOpaReleaseCoordinator` requires `POLICY_ADMIN_PUBLISH`, pinned `definitionFingerprint`, and passing positive + negative verification cases (`P53`, `P55`, `P63`).
+- **Rego v1 Estrito e Unidades Não Concorrentes:** `RegoV1PolicyCompiler` valida o AST contra limites fechados e emite `import rego.v1`; `OpaBundleAssembler` rejeita colisões de `policyUnitKey` ou `policyId` (`P38`);
+- **Transporte OPA Fail-Closed:** Ausência de `result` (`AUTHZ_OPA_UNDEFINED_RESULT`), timeouts (`AUTHZ_OPA_TIMEOUT`) e roteamento para instância desconhecida (`AUTHZ_OPA_UNKNOWN_INSTANCE`) falham fechado (`P18`, `P20`);
+- **Consistência de Revisão na Mesma Instância em `SEARCH`:** `SameInstanceSearchRevisionGuard` tolera apenas rotação benigna limitada na mesma instância (`0..3`) e aborta imediatamente sem retry se `X-OPA-Instance-Id` mudar entre preflight e postflight (`P17`);
+- **Ativação Verificada por Corpus:** `GovernedOpaReleaseCoordinator` exige `POLICY_ADMIN_PUBLISH`, `definitionFingerprint` fixado e casos positivos + negativos aprovados (`P53`, `P55`, `P63`).
 
-## Credential & Release Hygiene
+## Higiene de Credenciais e Releases
 
-- Never commit Maven Central tokens, GitHub PATs, GPG private keys, passphrases, or TLS/OPA credentials;
-- All Maven Central releases wait for upstream `praxis-authz-contracts` and `praxis-authz-enforcement-core` artifacts and execute exclusively in CI (see [RELEASING.md](RELEASING.md)).
+- Nunca comite tokens Maven Central, GitHub PATs, chaves GPG ou credenciais TLS/OPA;
+- Todas as releases oficiais aguardam `praxis-authz-contracts` e `praxis-authz-enforcement-core` e executam apenas em CI (veja [RELEASING.md](RELEASING.md)).

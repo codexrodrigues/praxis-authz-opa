@@ -5,91 +5,147 @@
 ![OPA Rego v1](https://img.shields.io/badge/OPA-Rego%20v1-7D9199?logo=openpolicyagent)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Deterministic **Open Policy Agent (OPA) Rego v1** compiler, 8-stage bundle assembler, fail-closed `AuthorizationProviderPort` adapter, 3-step `SEARCH` same-instance revision guard, and corpus-verified release coordinator for the **Praxis Authorization Decision Platform**.
+Compilador determinístico para **Open Policy Agent (OPA) Rego v1** (`import rego.v1`), montador de pacotes (*bundles*) em 8 estágios, adaptador *fail-closed* de `AuthorizationProviderPort`, guarda de consistência de revisão em 3 etapas na mesma instância para buscas `SEARCH` e coordenador de ativação validado por corpus positivo/negativo para a **Praxis Authorization Decision Platform**.
 
-**Quick Links:**
+**Links Rápidos:**
 [Maven Central](https://central.sonatype.com/artifact/io.github.codexrodrigues/praxis-authz-opa) ·
 [Changelog](CHANGELOG.md) ·
-[Releasing](RELEASING.md) ·
-[Contributing](CONTRIBUTING.md) ·
-[Security Policy](SECURITY.md) ·
-[Contracts](https://github.com/codexrodrigues/praxis-authz-contracts) ·
-[Enforcement Core](https://github.com/codexrodrigues/praxis-authz-enforcement-core) ·
-[Spring Boot Starter](https://github.com/codexrodrigues/praxis-authz-starter)
+[Guia de Release](RELEASING.md) ·
+[Como Contribuir](CONTRIBUTING.md) ·
+[Política de Segurança](SECURITY.md) ·
+[Política de GitHub Actions](ACTIONS-RELEASE-POLICY.md) ·
+[Regras para Agentes](AGENTS.md)
+
+**Módulos da Família Authz (`0.1.0-beta.1`):**
+[`praxis-authz-contracts`](https://github.com/codexrodrigues/praxis-authz-contracts) ·
+[`praxis-authz-enforcement-core`](https://github.com/codexrodrigues/praxis-authz-enforcement-core) ·
+**`praxis-authz-opa`** (você está aqui) ·
+[`praxis-authz-starter`](https://github.com/codexrodrigues/praxis-authz-starter)
 
 ---
 
-## Praxis Decision Platform & Architectural Thesis
+## Sumário
 
-The **Praxis Platform** is a **semantically oriented platform for AI-native enterprise applications**, in which **resources, rules, actions, data, and policies are described once** and operated uniformly by **traditional UIs, generative UIs, AI agents, and integrations** — building applications that are legible and operable by AI by design rather than adding AI on the side.
+1. [Onde Este Módulo Entra na Praxis Platform](#onde-este-m%C3%B3dulo-entra-na-praxis-platform)
+2. [Que Problema Corporativo Este Módulo Resolve?](#que-problema-corporativo-este-m%C3%B3dulo-resolve)
+3. [Por que a Solução Praxis Está à Frente do Mercado?](#por-que-a-solu%C3%A7%C3%A3o-praxis-est%C3%A1-%C3%A0-frente-do-mercado)
+4. [Ganho em Tokens de IA, Contexto e Velocidade em Grandes Sistemas](#ganho-em-tokens-de-ia-contexto-e-velocidade-em-grandes-sistemas)
+5. [Compilação Rego v1, Montagem de Bundle e Guarda SEARCH](#compila%C3%A7%C3%A3o-rego-v1-montagem-de-bundle-e-guarda-search)
+6. [Mapa de Pacotes e Contratos](#mapa-de-pacotes-e-contratos)
+7. [Instalação via Maven Central](#instala%C3%A7%C3%A3o-via-maven-central)
+8. [Exemplos Práticos de Uso](#exemplos-pr%C3%A1ticos-de-uso)
+9. [Invariantes de Segurança e Fail-Closed no Provedor OPA](#invariantes-de-seguran%C3%A7a-e-fail-closed-no-provedor-opa)
+10. [Build, Verificação e Governança](#build-verifica%C3%A7%C3%A3o-e-governan%C3%A7a)
 
-Within the Praxis Decision Platform, OPA policies execute exclusively on the `decisionKind = AUTHORIZATION` plane:
+---
 
-| Plane | Canonical Owner | Responsibilities |
+## Onde Este Módulo Entra na Praxis Platform
+
+Na [**Praxis Platform**](https://praxisui.dev/), **recursos, regras, ações, dados e políticas são descritos uma vez** e operados de maneira uniforme por interfaces tradicionais, interfaces generativas, agentes de IA e integrações backend. As decisões de autorização OPA executam exclusivamente no plano `decisionKind = AUTHORIZATION`:
+
+| Plano Arquitetural | Dono Canônico | Responsabilidades |
 | :--- | :--- | :--- |
-| **Resource & Domain Semantics** | [`praxis-metadata-starter`](https://github.com/codexrodrigues/praxis-metadata-starter) | `@ApiResource`, `x-ui`, `/schemas/filtered`, `/schemas/domain`, `@DomainGovernance`, `@DomainLineage`, `@Filterable`, `@WorkflowAction`, `@UiSurface`, stats, and export |
-| **Control Plane & Governed Decisions** | [`praxis-config-starter`](https://github.com/codexrodrigues/praxis-config-starter) / [`praxis-config-contracts`](https://github.com/codexrodrigues/praxis-config-contracts) | UI configuration, AI registry, API catalog grounding, maker-checker approvals, and snapshot lifecycle (`/api/praxis/config/**`) |
-| **`decisionKind = BUSINESS`** | [`praxis-rules-engine`](https://github.com/codexrodrigues/praxis-rules-engine) | Deterministic 5-state domain invariants, eligibility, and calculations (`RuleSet` / JSON Logic) |
-| **`decisionKind = AUTHORIZATION`** | [`contracts`](https://github.com/codexrodrigues/praxis-authz-contracts) -> [`enforcement-core`](https://github.com/codexrodrigues/praxis-authz-enforcement-core) -> **`praxis-authz-opa`** -> [`starter`](https://github.com/codexrodrigues/praxis-authz-starter) | `import rego.v1` compilation, canonical bundle digests, `evaluate_target` / `compile_data_scope`, same-instance revision guarding, and corpus-gated activation |
+| **Semântica de Recursos e Domínio** | [`praxis-metadata-starter`](https://github.com/codexrodrigues/praxis-metadata-starter) | `@ApiResource`, `x-ui`, `/schemas/filtered`, `/schemas/domain`, `@DomainGovernance`, `@DomainLineage`, `@Filterable`, `@WorkflowAction`, `@UiSurface`, estatísticas e exportação |
+| **Plano de Controle e Decisões (PAP)** | [`praxis-config-starter`](https://github.com/codexrodrigues/praxis-config-starter) / [`praxis-config-contracts`](https://github.com/codexrodrigues/praxis-config-contracts) | Configuração de UI, registro de IA, catálogo de APIs, aprovações 4-olhos (*maker-checker*) e ciclo de cabeças publicadas (`/api/praxis/config/**`) |
+| **Decisões de Negócio (`BUSINESS`)** | [`praxis-rules-engine`](https://github.com/codexrodrigues/praxis-rules-engine) | Motor determinístico de 5 estados em JSON Logic para invariantes de domínio, cálculos e elegibilidade |
+| **Estação de Autoria e Simulação** | [`praxis-rules-studio`](https://github.com/codexrodrigues/praxis-rules-studio) | Interface com **Lente de Regras de Negócio** e **Lente de Acesso e Proteção de Dados** para publicar decisões sem editar `.rego` à mão |
+| **Autorização e Proteção de Dados (`AUTHORIZATION`)** | [`contracts`](https://github.com/codexrodrigues/praxis-authz-contracts) → [`enforcement-core`](https://github.com/codexrodrigues/praxis-authz-enforcement-core) → **`praxis-authz-opa`** → [`starter`](https://github.com/codexrodrigues/praxis-authz-starter) | Compilação `import rego.v1`, digests canônicos de bundle, `evaluate_target` / `compile_data_scope`, guarda de revisão em `SEARCH` e ativação protegida por corpus |
+| **UI & Vitrine Operacional** | [`praxis-ui-angular`](https://github.com/codexrodrigues/praxis-ui-angular) & [`praxis-api-quickstart`](https://github.com/codexrodrigues/praxis-api-quickstart) | Materialização metadata-driven e host operacional completo com PostgreSQL e provas HTTP reais |
 
-**Module Boundary Guarantee:** `praxis-authz-opa` depends exclusively on `praxis-authz-contracts`, `praxis-authz-enforcement-core`, and Jackson `2.18.2`. `maven-enforcer-plugin` bans `org.springframework.boot:*` and `org.hibernate.orm:*` (`BND-OWN-004`) so the compiler, bundle assembler, and OPA transport adapters stay embeddable in headless PAP tools, sidecars, and non-Boot runtimes.
+**Garantia de Fronteira (`BND-OWN-004`):** `praxis-authz-opa` depende apenas de `praxis-authz-contracts`, `praxis-authz-enforcement-core` e Jackson `2.18.2`. O `maven-enforcer-plugin` proíbe `org.springframework.boot:*` e `org.hibernate.orm:*`, permitindo reutilizar o compilador, o montador de bundles e o transporte HTTP tanto no backend quanto em ferramentas CLI/PAP *headless*.
 
 ---
 
-## Compilation, Bundle Assembly & SEARCH Revision Guard
+## Que Problema Corporativo Este Módulo Resolve?
+
+Adotar o Open Policy Agent (OPA) em grandes sistemas corporativos traz enorme poder expressivo, mas gera cinco armadilhas críticas quando usado sem camada governada:
+
+1. **Escrita manual propensa a erros em Rego cru:** Desenvolvedores e analistas precisam lembrar de checar nulidades, evitar regras conflitantes (`policyUnitKey`), usar `import rego.v1` e retornar formatos padronizados para acesso, filtro SQL, campos visíveis, máscaras e obrigações.
+2. **Degradação silenciosa quando OPA retorna `undefined`:** Em Rego padrão, uma regra cuja condição falha pode simplesmente não produzir campo `result`, fazendo adaptadores ingênuos falharem em parse ou confundirem ausência de regra com permissão.
+3. **Condição de corrida (*split-brain*) em consultas `SEARCH` com múltiplos sidecars:** Se o cliente consultar uma instância OPA A para checar revisão/preflight e a requisição de `compile_data_scope` cair na instância OPA B com outro bundle carregado, a busca SQL aplica políticas inconsistentes.
+4. **Publicação de políticas degeneradas (`denyAll` ou excessivamente permissivas) em produção:** Um bug de autoria pode bloquear toda a empresa ou liberar todo um módulo no momento da ativação.
+5. **Ausência de modo determinístico local em testes e pipelines offline:** Depender de um binário OPA em Docker para todo teste unitário torna o ciclo de engenharia lento em grandes equipes.
+
+`praxis-authz-opa` resolve esses cinco pontos gerando código Rego v1 padronizado a partir da AST governada, empacotando `bundle.tar.gz` com digests verificados, impondo o handshake `SameInstanceSearchRevisionGuard`, validando ativações com `GovernedOpaReleaseCoordinator` e oferecendo o motor `DeterministicLocalOpaTransport` para testes locais rápidos.
+
+---
+
+## Por que a Solução Praxis Está à Frente do Mercado?
+
+| Dimensão | OPA / Rego Escrito à Mão | Frameworks de Autorização Proprietários | **Praxis `praxis-authz-opa`** |
+| :--- | :--- | :--- | :--- |
+| **Geração Determinística `import rego.v1`** | Rego manual sujeito a estilos divergentes por squad. | DSL proprietária presa ao fornecedor SaaS. | **`RegoV1PolicyCompiler` compila AST estruturada para `import rego.v1` com checagem de fatos `input.facts["..."].status == "PRESENT"` e digests dos Estágios `1–5`.** |
+| **Proteção contra Conflito de Unidades** | Sobrescrita silenciosa de pacotes no OPA. | Regras concorrentes resolvidas por ordem frágil. | **`OpaBundleAssembler` embute `praxis/authz/system/combining.rego`, detecta colisões `P38` antes de empacotar e fecha os Estágios `6–8`.** |
+| **Consistência em Buscas (`SEARCH`)** | Sidecar load-balanced sem guarda de instância/revisão. | Avaliação remota sem garantia atômica com pushdown SQL. | **`SameInstanceSearchRevisionGuard` fixa a mesma `X-OPA-Instance-Id`, valida `search_preflight` ↔ `compile_data_scope` ↔ `runtime_head` e falha fechado se a instância mudar (`P17`).** |
+| **Gate Anti-`denyAll` na Publicação** | Bundle sobe direto se o `.rego` compilar sintaticamente. | Requer suíte externa manual fora do fluxo de ativação. | **`GovernedOpaReleaseCoordinator` exige `POLICY_ADMIN_PUBLISH`, `definitionFingerprint` fixado (`P55`) e aprovação em corpus positivo + negativo (`P53`/`P63`).** |
+| **Teste Sem Container vs. Sidecar Real** | Obrigatório subir binário OPA ou mockar HTTP manualmente. | Só funciona contra o serviço hospedado do fornecedor. | **`DeterministicLocalOpaTransport` espelha localmente o comportamento OPA com injeção determinística de falhas, trocando com `HttpClientOpaTransport` via uma única porta.** |
+
+---
+
+## Ganho em Tokens de IA, Contexto e Velocidade em Grandes Sistemas
+
+Ao escalar o uso de IA e times paralelos em aplicações corporativas com dezenas de módulos:
+
+- **Eliminação de Rego Boilerplate no Contexto da LLM:** Em vez de pedir para uma IA escrever e depurar centenas de linhas `.rego` repetitivas para extração de `DataScope`, checagem de 6 estados de fato e combinação de máscaras em cada entidade, a IA atua sobre a definição declarativa (`AuthorizationPolicyDefinition` / `AuthzHostPolicyBootstrapBuilder`), enquanto `RegoV1PolicyCompiler` e `OpaBundleAssembler` geram todo o `import rego.v1` + `combining.rego` deterministicamente.
+- **Ciclo de Feedback em Milissegundos via `DeterministicLocalOpaTransport`:** Agentes de desenvolvimento e desenvolvedores testam cenários completos de compilação, colisão, rotação de revisão e corpus positivo/negativo em memória via `mvn verify`, sem precisar levantar sidecars OPA ou containers Docker a cada mudança.
+- **Publicação Segura Sem Intervenção Humana Arriscada:** Com o gate de corpus positivo + negativo embutido no `GovernedOpaReleaseCoordinator`, erros gerados por humanos ou por assistentes de IA são interceptados automaticamente antes de gerar um `PolicyCandidateActivationReceipt` em produção.
+
+---
+
+## Compilação Rego v1, Montagem de Bundle e Guarda SEARCH
 
 ```mermaid
 flowchart LR
-    def["AuthorizationPolicyDefinition<br/>(praxis.authorization-policy/v1)"] --> comp["RegoV1PolicyCompiler<br/>import rego.v1 · Stages 1-5"]
+    def["AuthorizationPolicyDefinition<br/>(praxis.authorization-policy/v1)"] --> comp["RegoV1PolicyCompiler<br/>import rego.v1 · Estágios 1-5"]
     comp --> unit["CompiledRegoUnit<br/>praxis/authz/units/*.rego"]
-    unit --> asm["OpaBundleAssembler<br/>combining.rego · Stages 6-8"]
+    unit --> asm["OpaBundleAssembler<br/>combining.rego · Estágios 6-8"]
     asm --> bundle["OpaBundleArtifact<br/>bundle.tar.gz bytes + OpaRuntimeRelease"]
-    bundle --> coord["GovernedOpaReleaseCoordinator<br/>POLICY_ADMIN_PUBLISH + positive/negative corpus"]
-    coord --> transport["OpaClientTransport<br/>HttpClientOpaTransport or DeterministicLocalOpaTransport"]
+    bundle --> coord["GovernedOpaReleaseCoordinator<br/>POLICY_ADMIN_PUBLISH + corpus positivo/negativo"]
+    coord --> transport["OpaClientTransport<br/>HttpClientOpaTransport ou DeterministicLocalOpaTransport"]
 ```
 
-For `EvaluationMode.SEARCH` queries, `SameInstanceSearchRevisionGuard` prevents split-brain bundle drift between preflight revision checks and `DataScopePlan` compilation:
+Para consultas `EvaluationMode.SEARCH`, `SameInstanceSearchRevisionGuard` impede deriva entre a verificação de revisão e a compilação de `DataScopePlan`:
 
 ```mermaid
 sequenceDiagram
     participant PEP as OpaAuthorizationProviderAdapter
     participant Guard as SameInstanceSearchRevisionGuard
-    participant OPA as Pinned OPA Instance
+    participant OPA as Instância OPA Fixada (Pinned)
 
     PEP->>Guard: executeGuardedSearch(pinnedInstanceId, input)
     Guard->>OPA: POST /v1/data/praxis/authz/v1/search_preflight
-    OPA-->>Guard: preflight runtimeHead + X-OPA-Instance-Id
+    OPA-->>Guard: runtimeHead preflight + X-OPA-Instance-Id
     Guard->>OPA: POST /v1/data/praxis/authz/v1/compile_data_scope
     OPA-->>Guard: DataScopePlan + FieldUse + MaskDirectives
     Guard->>OPA: POST /v1/data/praxis/authz/v1/runtime_head
-    OPA-->>Guard: postflight runtimeHead + X-OPA-Instance-Id
+    OPA-->>Guard: runtimeHead postflight + X-OPA-Instance-Id
 
-    alt instanceId changed between preflight and postflight
-        Guard--xPEP: fail closed (OpaRevisionMismatchException, 0 retries)
-    else same instanceId and bundle rotated mid-flight
-        Guard->>OPA: retry full sequence (up to maxSameInstanceRetries = 1)
-    else exact runtimeHead match
-        Guard-->>PEP: normalized ProviderEvaluationEnvelope
+    alt instanceId mudou entre preflight e postflight
+        Guard--xPEP: fail closed (OpaRevisionMismatchException, 0 tentativas)
+    else mesmo instanceId e o bundle rotacionou durante o voo
+        Guard->>OPA: repete sequência completa (até maxSameInstanceRetries = 1)
+    else runtimeHead exato e consistente
+        Guard-->>PEP: ProviderEvaluationEnvelope normalizado
     end
 ```
 
 ---
 
-## Package & Contract Map
+## Mapa de Pacotes e Contratos
 
-| Package | Key Types | Role |
+| Pacote (`org.praxisplatform.authz.opa...`) | Tipos Principais | Papel na Arquitetura |
 | :--- | :--- | :--- |
-| `org.praxisplatform.authz.opa.compiler` | `RegoV1PolicyCompiler`, `CompiledRegoUnit` | Validates candidate policies (`CC05`), translates fact references to `input.facts["..."].status == "PRESENT"`, emits `import rego.v1` unit modules under `praxis/authz/units/*.rego`, and computes Stages `1–5` of `PolicyDigestChain` |
-| `org.praxisplatform.authz.opa.bundle` | `OpaBundleAssembler`, `OpaBundleArtifact`, `OpaBundleDataDocument` | Embeds `praxis/authz/system/combining.rego`, detects competing `policyUnitKey` or `policyId` assignments (`P38`), sorts units canonically, generates `data.json`, and computes `COMPOSITION_DIGEST`, `POLICY_SET_DIGEST`, and `BUNDLE_ARTIFACT_DIGEST` (Stages `6–8`) |
-| `org.praxisplatform.authz.opa.revision` | `SameInstanceSearchRevisionGuard`, `OpaRevisionMismatchException`, `OpaEvaluationFailureException` | Executes the 3-step `SEARCH` revision handshake (`P17`), retries bounded same-instance bundle rotations (`0..3`, default `1`), and rejects cross-instance switches immediately without retry |
-| `org.praxisplatform.authz.opa.client` | `OpaAuthorizationProviderAdapter`, `OpaClientTransport`, `HttpClientOpaTransport`, `DeterministicLocalOpaTransport`, `OpaTransportResponse` | Implements `AuthorizationProviderPort` (`evaluateTarget`, `evaluateSearch`) against `/v1/data/praxis/authz/v1/{evaluate_target,search_preflight,compile_data_scope,runtime_head}`, enforces request timeouts, and rejects undefined OPA results (`P18`, `P20`) |
-| `org.praxisplatform.authz.opa.governance` | `GovernedOpaReleaseCoordinator`, `PolicyCandidateVerificationCorpusCase`, `PolicyCandidateActivationReceipt` | Enforces `POLICY_ADMIN_PUBLISH` (`P28`/`P32`), verifies pinned `definitionFingerprint` (`P55`), executes mandatory positive + negative verification corpus cases against `DeterministicLocalOpaTransport` (`P53`/`P63` anti-`denyAll` gate), and emits signed activation receipts |
+| `...compiler` | `RegoV1PolicyCompiler`, `CompiledRegoUnit` | Valida políticas candidatas (`CC05`), traduz referências de fatos para `input.facts["..."].status == "PRESENT"`, emite unidades `import rego.v1` em `praxis/authz/units/*.rego` e calcula os Estágios `1–5` de `PolicyDigestChain` |
+| `...bundle` | `OpaBundleAssembler`, `OpaBundleArtifact`, `OpaBundleDataDocument` | Embute `praxis/authz/system/combining.rego`, detecta atribuições concorrentes de `policyUnitKey` ou `policyId` (`P38`), ordena unidades canonicamente, gera `data.json` e calcula `COMPOSITION_DIGEST`, `POLICY_SET_DIGEST` e `BUNDLE_ARTIFACT_DIGEST` (Estágios `6–8`) |
+| `...revision` | `SameInstanceSearchRevisionGuard`, `OpaRevisionMismatchException`, `OpaEvaluationFailureException` | Executa o handshake de revisão em 3 etapas para `SEARCH` (`P17`), aplica retentativas limitadas na mesma instância em rotações benignas (`0..3`, padrão `1`) e rejeita troca de instância imediatamente sem retry |
+| `...client` | `OpaAuthorizationProviderAdapter`, `OpaClientTransport`, `HttpClientOpaTransport`, `DeterministicLocalOpaTransport`, `OpaTransportResponse` | Implementa `AuthorizationProviderPort` (`evaluateTarget`, `evaluateSearch`) contra `/v1/data/praxis/authz/v1/{evaluate_target,search_preflight,compile_data_scope,runtime_head}`, impõe timeouts por requisição e rejeita respostas `undefined` do OPA (`P18`, `P20`) |
+| `...governance` | `GovernedOpaReleaseCoordinator`, `PolicyCandidateVerificationCorpusCase`, `PolicyCandidateActivationReceipt` | Impõe autoridade `POLICY_ADMIN_PUBLISH` (`P28`/`P32`), verifica `definitionFingerprint` fixado (`P55`), executa corpus obrigatório positivo + negativo sobre `DeterministicLocalOpaTransport` (gate anti-`denyAll` `P53`/`P63`) e emite recibos assinados de ativação |
 
 ---
 
-## Maven Central Coordinates
+## Instalação via Maven Central
 
-Requires **Java 21**. Published on Maven Central:
+Requer **Java 21**. Publicado no Maven Central:
 
 ```xml
 <dependency>
@@ -101,9 +157,9 @@ Requires **Java 21**. Published on Maven Central:
 
 ---
 
-## Usage Examples
+## Exemplos Práticos de Uso
 
-### 1. Compile Policies & Assemble a Canonical OPA Bundle
+### 1. Compilar Políticas e Montar um Bundle OPA Canônico
 
 ```java
 import java.util.List;
@@ -133,7 +189,7 @@ OpaBundleArtifact bundle = assembler.assembleBundle(
 );
 ```
 
-### 2. Wire `OpaAuthorizationProviderAdapter` with Local or Sidecar HTTP Transport
+### 2. Conectar `OpaAuthorizationProviderAdapter` via HTTP Sidecar (ou Transporte Local)
 
 ```java
 import java.net.URI;
@@ -155,31 +211,31 @@ OpaAuthorizationProviderAdapter provider =
 
 ---
 
-## Security & Fail-Closed Provider Invariants
+## Invariantes de Segurança e Fail-Closed no Provedor OPA
 
-- **Strict Rego v1 Compilation:** Every compiled policy unit includes `import rego.v1`, enforces `input.facts["..."].status == "PRESENT"` checks (preserving 6-state fact safety), and rejects competing unit or policy identifiers before bundling (`P37`, `P38`).
-- **Undefined OPA Result & Timeout Rejection:** Missing `result` fields (`AUTHZ_OPA_UNDEFINED_RESULT`), unknown instance identifiers (`AUTHZ_OPA_UNKNOWN_INSTANCE`), HTTP timeouts (`AUTHZ_OPA_TIMEOUT`), and protocol errors fail closed inside `OpaAuthorizationProviderAdapter` and never degrade to permissive decisions (`P18`, `P20`).
-- **Zero Cross-Instance Revision Drift:** During `SEARCH`, `SameInstanceSearchRevisionGuard` requires matching `OpaRuntimeHead` digests on preflight and postflight responses from the **same** `instanceId`. Switching OPA instances mid-search throws `OpaRevisionMismatchException` immediately with zero retries (`P17`).
-- **Corpus-Gated Release Activation:** `GovernedOpaReleaseCoordinator` rejects unapproved candidates (`definitionFingerprint` mismatch), zero-test releases, or permissive/`denyAll` degenerate bundles via positive + negative `PolicyCandidateVerificationCorpusCase` verification before issuing a `PolicyCandidateActivationReceipt` (`P53`, `P55`, `P63`).
+- **Compilação Rego v1 Estrita:** Toda unidade compilada traz `import rego.v1`, obriga checagem `input.facts["..."].status == "PRESENT"` (preservando os 6 estados de fato) e rejeita identificadores conflitantes antes do empacotamento (`P37`, `P38`).
+- **Rejeição de `undefined` e Timeouts do OPA:** Ausência de campo `result` (`AUTHZ_OPA_UNDEFINED_RESULT`), instância desconhecida (`AUTHZ_OPA_UNKNOWN_INSTANCE`), timeout HTTP (`AUTHZ_OPA_TIMEOUT`) e erros de protocolo falham fechado dentro de `OpaAuthorizationProviderAdapter` sem nunca degradar para decisão permissiva (`P18`, `P20`).
+- **Zero Deriva Entre Instâncias em `SEARCH`:** Em consultas `SEARCH`, `SameInstanceSearchRevisionGuard` exige correspondência exata do digest `OpaRuntimeHead` entre preflight e postflight na **mesma** `instanceId`. Troca de instância OPA no meio da consulta lança `OpaRevisionMismatchException` imediatamente sem retry (`P17`).
+- **Ativação Protegida por Corpus:** `GovernedOpaReleaseCoordinator` bloqueia candidatos não aprovados (divergência de `definitionFingerprint`), releases sem casos de teste ou bundles degenerados (`denyAll` / excessivamente permissivos) via verificação obrigatória positiva + negativa de `PolicyCandidateVerificationCorpusCase` antes de emitir `PolicyCandidateActivationReceipt` (`P53`, `P55`, `P63`).
 
 ---
 
-## Build, Verification & Governance
+## Build, Verificação e Governança
 
-Run the local verification suite (including `maven-enforcer-plugin` runtime boundary checks) with JDK 21 and Maven 3.9+:
+Execute a suíte de verificação local (incluindo checagens de fronteira do `maven-enforcer-plugin`) com JDK 21 e Maven 3.9+:
 
 ```powershell
 mvn -B clean verify
 ```
 
-Related repository documentation:
-- [CHANGELOG.md](CHANGELOG.md) — version history and published artifacts
-- [RELEASING.md](RELEASING.md) — multi-repository release order and Maven Central publication flow
-- [ACTIONS-RELEASE-POLICY.md](ACTIONS-RELEASE-POLICY.md) — GitHub Actions usage and release gate policy
-- [CONTRIBUTING.md](CONTRIBUTING.md) — module boundaries, enforcer rules, and contribution workflow
-- [SECURITY.md](SECURITY.md) — vulnerability disclosure and fail-closed provider invariants
-- [AGENTS.md](AGENTS.md) — coding and governance rules for autonomous agents
+Documentação relacionada neste repositório:
+- [CHANGELOG.md](CHANGELOG.md) — histórico de versões e artefatos publicados
+- [RELEASING.md](RELEASING.md) — ordem de release multi-repositório e fluxo Maven Central
+- [ACTIONS-RELEASE-POLICY.md](ACTIONS-RELEASE-POLICY.md) — política estrita de uso do GitHub Actions e gates de release
+- [CONTRIBUTING.md](CONTRIBUTING.md) — fronteiras de módulo, regras do Enforcer e fluxo de contribuição
+- [SECURITY.md](SECURITY.md) — divulgação responsável de vulnerabilidades e invariantes de segurança
+- [AGENTS.md](AGENTS.md) — regras de engenharia e governança para agentes autônomos
 
-## License
+## Licença
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+Distribuído sob a licença [Apache License, Version 2.0](LICENSE).
