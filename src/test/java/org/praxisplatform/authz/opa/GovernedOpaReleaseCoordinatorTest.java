@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.praxisplatform.authz.contracts.context.FactResolutionStatus;
 import org.praxisplatform.authz.contracts.context.ProviderInputProjection;
-import org.praxisplatform.authz.contracts.context.ResolvedFactValue;
 import org.praxisplatform.authz.contracts.context.TemporalContext;
 import org.praxisplatform.authz.contracts.datascope.DataScopeOutcome;
 import org.praxisplatform.authz.contracts.datascope.QueryableResourceProjection;
@@ -40,7 +40,7 @@ class GovernedOpaReleaseCoordinatorTest {
         QueryableResourceProjection qp = RegoV1CompilerAndBundleAssemblerTest.sampleQueryProjection(qpDigest);
         DecisionPointDescriptor dp = RegoV1CompilerAndBundleAssemblerTest.sampleDecisionPoint(fcDigest, qpDigest, dpDigest);
         AuthorizationPolicyDefinition policy = RegoV1CompilerAndBundleAssemblerTest.samplePolicy(
-                "pol-ergon-afastamentos", "unit:pol-ergon-afastamentos:v1", dp.identity().pointKey(), dpDigest);
+                "pol-hr-leave-requests", "unit:pol-hr-leave-requests:v1", dp.identity().pointKey(), dpDigest);
 
         ProviderInputProjection positiveInput = new ProviderInputProjection(
                 ProviderInputProjection.SCHEMA_VERSION_V1,
@@ -49,12 +49,12 @@ class GovernedOpaReleaseCoordinatorTest {
                 fc.factContractDigest(),
                 new TemporalContext(Instant.now(), ZoneId.of("UTC")),
                 Map.of(
-                        "subject.principalId", "usr-gestor-101",
+                        "subject.principalId", "usr-manager-101",
                         "subject.organizationUnitIds", List.of(101L, 102L)
                 ),
                 Map.of(
-                        "subject.principalId", org.praxisplatform.authz.contracts.context.FactResolutionStatus.PRESENT,
-                        "subject.organizationUnitIds", org.praxisplatform.authz.contracts.context.FactResolutionStatus.PRESENT
+                        "subject.principalId", FactResolutionStatus.PRESENT,
+                        "subject.organizationUnitIds", FactResolutionStatus.PRESENT
                 ),
                 Set.of()
         );
@@ -65,29 +65,29 @@ class GovernedOpaReleaseCoordinatorTest {
                 fc.factContractDigest(),
                 new TemporalContext(Instant.now(), ZoneId.of("UTC")),
                 Map.of(
-                        "subject.principalId", "usr-outro-999",
+                        "subject.principalId", "usr-other-999",
                         "subject.organizationUnitIds", List.of(999L)
                 ),
                 Map.of(
-                        "subject.principalId", org.praxisplatform.authz.contracts.context.FactResolutionStatus.PRESENT,
-                        "subject.organizationUnitIds", org.praxisplatform.authz.contracts.context.FactResolutionStatus.PRESENT
+                        "subject.principalId", FactResolutionStatus.PRESENT,
+                        "subject.organizationUnitIds", FactResolutionStatus.PRESENT
                 ),
                 Set.of()
         );
 
         PolicyCandidateVerificationCorpusCase positiveCase = new PolicyCandidateVerificationCorpusCase(
                 "case-pos-1",
-                "Gestor 101 obtém ALLOW e filtro por lotação",
+                "Manager 101 receives ALLOW and department-scoped filter",
                 EvaluationMode.SEARCH,
                 positiveInput,
                 null,
                 GateOutcome.ALLOW,
-                "ALLOW_LOTACAO_GESTOR",
+                "ALLOW_DEPARTMENT_MANAGER",
                 DataScopeOutcome.FILTER
         );
         PolicyCandidateVerificationCorpusCase negativeCase = new PolicyCandidateVerificationCorpusCase(
                 "case-neg-1",
-                "Outro usuário não recebe concessão da regra",
+                "Other user does not receive rule grant",
                 EvaluationMode.SEARCH,
                 negativeInput,
                 null,
@@ -130,7 +130,7 @@ class GovernedOpaReleaseCoordinatorTest {
                 coordinator.verifyAndActivateRelease(
                         "rel-1", "rev-1", "prod", "opa-1", capDigest,
                         "admin-sec", Set.of(GovernedOpaReleaseCoordinator.REQUIRED_ADMIN_AUTHORITY),
-                        List.of(policy), Map.of("pol-ergon-afastamentos", wrongDigest),
+                        List.of(policy), Map.of("pol-hr-leave-requests", wrongDigest),
                         Map.of(dp.identity().pointKey(), dp),
                         Map.of(fc.factContractId(), fc),
                         Map.of(qp.projectionId(), qp),

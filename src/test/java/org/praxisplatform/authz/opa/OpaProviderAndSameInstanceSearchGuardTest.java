@@ -28,6 +28,7 @@ import org.praxisplatform.authz.contracts.context.ResolvedFactValue;
 import org.praxisplatform.authz.contracts.context.TemporalContext;
 import org.praxisplatform.authz.contracts.datascope.DataScopeOutcome;
 import org.praxisplatform.authz.contracts.datascope.QueryableResourceProjection;
+import org.praxisplatform.authz.contracts.datascope.SearchPredicateOperator;
 import org.praxisplatform.authz.contracts.decisionpoint.DecisionPointDescriptor;
 import org.praxisplatform.authz.contracts.decisionpoint.DecisionPointRef;
 import org.praxisplatform.authz.contracts.decisionpoint.EnforcementCapability;
@@ -36,9 +37,13 @@ import org.praxisplatform.authz.contracts.decisionpoint.FieldUseCategory;
 import org.praxisplatform.authz.contracts.decisionpoint.PointAuthorityMode;
 import org.praxisplatform.authz.contracts.digest.CanonicalDigestCalculator;
 import org.praxisplatform.authz.contracts.digest.DigestDomainKind;
-import org.praxisplatform.authz.contracts.envelope.EnforcementDisposition;
-import org.praxisplatform.authz.contracts.envelope.GateOutcome;
+import org.praxisplatform.authz.contracts.envelope.ContributionAuthority;
 import org.praxisplatform.authz.contracts.policy.AuthorizationPolicyDefinition;
+import org.praxisplatform.authz.contracts.policy.AuthorizationPolicyRule;
+import org.praxisplatform.authz.contracts.policy.AuthorizationRuleContributions;
+import org.praxisplatform.authz.contracts.policy.AuthorizationSourceCondition;
+import org.praxisplatform.authz.contracts.policy.ConditionProfileKind;
+import org.praxisplatform.authz.contracts.policy.DataScopeContributionSpec;
 import org.praxisplatform.authz.enforcement.context.ContextCompositionCoordinator;
 import org.praxisplatform.authz.enforcement.context.TrustedFactSource;
 import org.praxisplatform.authz.enforcement.fielduse.FieldUseQueryGuard;
@@ -79,7 +84,7 @@ class OpaProviderAndSameInstanceSearchGuardTest {
         QueryableResourceProjection qp = RegoV1CompilerAndBundleAssemblerTest.sampleQueryProjection(qpDigest);
         DecisionPointDescriptor dp = RegoV1CompilerAndBundleAssemblerTest.sampleDecisionPoint(fcDigest, qpDigest, dpDigest);
         AuthorizationPolicyDefinition policy = RegoV1CompilerAndBundleAssemblerTest.samplePolicy(
-                "pol-ergon-afastamentos", "unit:pol-ergon-afastamentos:v1", dp.identity().pointKey(), dpDigest);
+                "pol-hr-leave-requests", "unit:pol-hr-leave-requests:v1", dp.identity().pointKey(), dpDigest);
 
         RegoV1PolicyCompiler compiler = new RegoV1PolicyCompiler();
         CompiledRegoUnit unit = compiler.compileUnit(
@@ -90,9 +95,9 @@ class OpaProviderAndSameInstanceSearchGuardTest {
         );
         OpaBundleAssembler assembler = new OpaBundleAssembler(compiler);
         OpaBundleArtifact bundleRev1 = assembler.assembleBundle(
-                "rel-1", "rev-1", 1L, "prod-gov-sp", "opa-node-1", capDigest, List.of(unit));
+                "rel-1", "rev-1", 1L, "prod-cluster-a", "opa-node-1", capDigest, List.of(unit));
         OpaBundleArtifact bundleRev2 = assembler.assembleBundle(
-                "rel-2", "rev-2", 2L, "prod-gov-sp", "opa-node-1", capDigest, List.of(unit));
+                "rel-2", "rev-2", 2L, "prod-cluster-a", "opa-node-1", capDigest, List.of(unit));
 
         DeterministicLocalOpaTransport transport = new DeterministicLocalOpaTransport(bundleRev1, List.of(qp));
         OpaAuthorizationProviderAdapter adapter = new OpaAuthorizationProviderAdapter(
@@ -124,7 +129,7 @@ class OpaProviderAndSameInstanceSearchGuardTest {
                             Map<String, FactDescriptor> descriptorsToResolve,
                             Map<String, ResolvedFactValue> alreadyResolved
                     ) {
-                        return Map.of("subject.principalId", ResolvedFactValue.present("subject.principalId", "usr-gestor-101"));
+                        return Map.of("subject.principalId", ResolvedFactValue.present("subject.principalId", "usr-manager-101"));
                     }
                 },
                 new TrustedFactSource() {
@@ -185,10 +190,10 @@ class OpaProviderAndSameInstanceSearchGuardTest {
         JpaDataScopeAdapter jpaAdapter = new JpaDataScopeAdapter(
                 qp,
                 List.of(new QueryAdapterFieldBinding(
-                        "human-resources.afastamentos",
-                        "resource.lotacaoSetorId",
-                        "ergon.afastamentos.lotacao_setor_id",
-                        "vinculo.lotacao.id",
+                        "human-resources.leave-requests",
+                        "resource.departmentId",
+                        "hr.leave_requests.department_id",
+                        "assignment.department.id",
                         RelationTraversalStrategy.INNER_JOIN_SCALAR,
                         true
                 ))
@@ -218,13 +223,13 @@ class OpaProviderAndSameInstanceSearchGuardTest {
                 Map.of(),
                 jpaAdapter,
                 "e.tenantId = :hardTenantId",
-                Map.of("hardTenantId", "gov-sp"),
+                Map.of("hardTenantId", "tenant-alpha"),
                 row -> true,
                 Map.of()
         );
         assertTrue(searchOutcome.isPermitted());
         assertEquals(DataScopeOutcome.FILTER, searchOutcome.dataScopeCriterion().scopeOutcome());
-        assertTrue(searchOutcome.dataScopeCriterion().composedWhereClause().contains("e.vinculo.lotacao.id IN (:dspParam1)"));
+        assertTrue(searchOutcome.dataScopeCriterion().composedWhereClause().contains("e.assignment.department.id IN (:dspParam1)"));
 
         // 2. P17: Single same-instance bundle rotation before postflight -> 1-shot retry recovers on rev-2!
         transport.setRotateBundleBeforePostflight(bundleRev2);
@@ -242,7 +247,7 @@ class OpaProviderAndSameInstanceSearchGuardTest {
                 Map.of(),
                 jpaAdapter,
                 "e.tenantId = :hardTenantId",
-                Map.of("hardTenantId", "gov-sp"),
+                Map.of("hardTenantId", "tenant-alpha"),
                 row -> true,
                 Map.of()
         );
@@ -276,25 +281,25 @@ class OpaProviderAndSameInstanceSearchGuardTest {
         assertEquals(inputProj.temporalContext().instant(), targetEnv.evaluatedAt());
 
         // 7. P3-R2 / CC12: Multiple DATA_SCOPE rules combine GRANT by union (OR) and RESTRICT by intersection (AND)
-        var restrictRule = new org.praxisplatform.authz.contracts.policy.AuthorizationPolicyRule(
-                "rule-restrict-lotacao",
-                "Restringe escopo ao lote autorizado",
+        var restrictRule = new AuthorizationPolicyRule(
+                "rule-restrict-department",
+                "Restricts scope to authorized department",
                 Set.of(EvaluationMode.SEARCH),
                 policy.rules().get(0).when(),
-                new org.praxisplatform.authz.contracts.policy.AuthorizationRuleContributions(
+                new AuthorizationRuleContributions(
                         null,
-                        new org.praxisplatform.authz.contracts.policy.DataScopeContributionSpec(
-                                org.praxisplatform.authz.contracts.envelope.ContributionAuthority.RESTRICT,
-                                new org.praxisplatform.authz.contracts.policy.AuthorizationSourceCondition(
-                                        org.praxisplatform.authz.contracts.policy.AuthorizationSourceCondition.LANGUAGE_PRAXIS_JSON_LOGIC,
-                                        org.praxisplatform.authz.contracts.policy.ConditionProfileKind.AUTHORIZATION_SEARCH_SOURCE_V1,
-                                        Map.of("==", List.of(Map.of("var", "resource.lotacaoSetorId"), 101L))
+                        new DataScopeContributionSpec(
+                                ContributionAuthority.RESTRICT,
+                                new AuthorizationSourceCondition(
+                                        AuthorizationSourceCondition.LANGUAGE_PRAXIS_JSON_LOGIC,
+                                        ConditionProfileKind.AUTHORIZATION_SEARCH_SOURCE_V1,
+                                        Map.of("==", List.of(Map.of("var", "resource.departmentId"), 101L))
                                 )
                         ),
                         List.of(),
                         List.of(),
                         List.of(),
-                        "RESTRICT_LOTACAO_101"
+                        "RESTRICT_DEPARTMENT_101"
                 ),
                 List.of()
         );
@@ -321,12 +326,12 @@ class OpaProviderAndSameInstanceSearchGuardTest {
                 Map.of(qp.projectionId(), qp)
         );
         OpaBundleArtifact bundleRev3 = assembler.assembleBundle(
-                "rel-3", "rev-3", 3L, "prod-gov-sp", "opa-node-1", capDigest, List.of(multiUnit));
+                "rel-3", "rev-3", 3L, "prod-cluster-a", "opa-node-1", capDigest, List.of(multiUnit));
         transport.activateBundle(bundleRev3);
         var combinedSearchRes = adapter.evaluateSearch(inputProj);
         assertEquals(DataScopeOutcome.FILTER, combinedSearchRes.dataScopePlan().scopeOutcome());
         assertEquals(
-                org.praxisplatform.authz.contracts.datascope.SearchPredicateOperator.AND,
+                SearchPredicateOperator.AND,
                 combinedSearchRes.dataScopePlan().predicateIr().operator());
     }
 }

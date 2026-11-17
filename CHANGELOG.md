@@ -4,6 +4,12 @@ Todas as mudanças relevantes de `praxis-authz-opa` são documentadas neste arqu
 
 O formato segue o padrão [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), e este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Alterado
+- Atualizado o ciclo de desenvolvimento local para `0.1.0-beta.2-SNAPSHOT` consumindo `praxis-authz-contracts` e `praxis-authz-enforcement-core` na mesma série.
+- Neutralizados exemplos e fixtures da suíte de testes de compilação Rego v1, coordenação de releases e guarda `SEARCH` para vocabulário agnóstico de domínio corporativo.
+
 ## [0.1.0-beta.1] - 2026-11-15
 
 ### Adicionado
